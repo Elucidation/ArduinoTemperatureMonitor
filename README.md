@@ -1,6 +1,11 @@
 Arduino Temperature Monitor
 ---
 
+Schematic
+---
+
+![Basic schematic](http://i.imgur.com/nZZ8zjA.png)
+
 Parts
 ---
 
@@ -20,6 +25,3 @@ Installation
 ---
 Add folders in `libraries/` to your arduino libraries folder.
 
-Schematic
----
-Check back in a short while...
