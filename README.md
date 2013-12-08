@@ -19,3 +19,7 @@ Parts
 Installation
 ---
 Add folders in `libraries/` to your arduino libraries folder.
+
+Schematic
+---
+Check back in a short while...
