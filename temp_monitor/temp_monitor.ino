@@ -1,6 +1,3 @@
-#include <Wire.h>
-#include <LiquidCrystal_I2C.h>
-
 // which analog pins to connect
 #define THERMISTOR_PIN_A A0
 #define THERMISTOR_PIN_B A1
@@ -18,25 +15,12 @@
 
 // PIN 2 - Used for Pushbutton with interrupt 0
 
-// Signal LEDs
-#define LED_GREEN 13
-#define LED_RED 12
-// Logic : If Temp A is < 0c, RED
-// If Temp A > 5c, GREEN
-
-LiquidCrystal_I2C lcd(0x27,16,2);  // set the LCD address to 0x27 for a 16 chars and 2 line display
-
 // Thermistor sample array
 int samples[NUMSAMPLES];
 
 // Used in getTemp to get steinhart value for temperature conversion from thermistor reading.
 float steinhart;
 
-// Keeps track of whether LCD backlight should be on or off via interrupt.
-volatile bool do_backlight = false;
-
-// Keeps track of last backlight status
-bool last = do_backlight;
 float tempA, tempB;
 
 // Returns temperature in degrees celcius of thermistor reading from given pin
@@ -68,24 +52,20 @@ float getTemp(int pin) {
   return steinhart;
 }
 
-// Switches do_backlight on pushbutton press
-void switch_backlight() {
-  do_backlight = !do_backlight;
+bool last, do_switch = false;
+void doFileSwitch() {
+  // Todo: Switch to new logging file on button pres
+  do_switch = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 void setup() {
-  // Initialize the lcd 
-  lcd.init();
-  lcd.print("Initializing...");
-  switch_backlight();
   
   // Trigger backlight on push button on pin 2 (interrupt 0)
-  attachInterrupt(0, switch_backlight, RISING);
+  attachInterrupt(0, doFileSwitch, RISING);
   
-  // Set up Signal LEDs
-  pinMode(LED_GREEN, OUTPUT);
-  pinMode(LED_RED, OUTPUT);
+  // Start serial
+  Serial.begin(9600);
   
 }
 
@@ -94,45 +74,23 @@ void loop() {
   tempA = getTemp(THERMISTOR_PIN_A);
   tempB = getTemp(THERMISTOR_PIN_B);
   
-  // Signal LEDS
-  // A
-  // <= 0 ~ RED
-  // 0 < 5 < ~ Nothing
-  // >= 5 ~ GREEN
-  if (tempA <= 0) {
-    digitalWrite(LED_RED, HIGH);
-    digitalWrite(LED_GREEN, LOW);
-  }
-  else if (tempA >= 5) {
-    digitalWrite(LED_RED, LOW);
-    digitalWrite(LED_GREEN, HIGH);
-  }
-  else {
-    digitalWrite(LED_RED, LOW);
-    digitalWrite(LED_GREEN, LOW);
-  }
   
   // Has to run outside interrupt
-  // TODO : Make faster than 1Hz
-  if (do_backlight != last) {
-    // Set LCD backlight based on state
-    do_backlight ? lcd.backlight() : lcd.noBacklight();
-    last = do_backlight;
+  if (do_switch != last) {
+    if (do_switch) {
+      // Todo: Switch files
+      Serial.println("Switch files.");
+      do_switch = false;
+    }
+    last = do_switch;
   }
   
   // Thermistor A
-  lcd.setCursor(0,0);
-  lcd.print("OUT: ");
-  lcd.print(tempA, 1);
-  lcd.print((char)223);
-  lcd.print("C    ");
+  Serial.print(tempA, 1);
+  Serial.print(" ");
   
   // Thermistor B
-  lcd.setCursor(0,1);
-  lcd.print(" IN: ");
-  lcd.print(tempB, 1);
-  lcd.print((char)223);
-  lcd.print("C    ");
+  Serial.println(tempB, 1);
   
   // Wait one second.
   delay(1000);  
