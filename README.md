@@ -31,6 +31,12 @@ Example log data written to 'logN.txt' where N is increasing with button presses
 
 * In this branch, I removed the LCD / LED stuff, since I'm  working with the SD Card and just want to log temperature data for the rest of winter '13.
 
+In terms of space on SD Card, a worst case entry is `4294967295 -273.1 -273.1`
+
+25 chars to write that, 1 byte a char = 25 bytes per line ~ 25 bytes/sec
+`50 days * (25 bytes/sec) = 102.996826 megabytes`
+
+
 A single entry will reasonably take at most 25 chars. At a rate of 1 Hz, it comes out to about 2 Mb a day, so in 25 days when I get back it should be around 50 Mb. I've left it running with a 4 Gb SD card so it should be fine.
 
 Code is set up such that if power resets on it, it'll go to next new log file and start writing there.
