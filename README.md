@@ -1,5 +1,40 @@
-Arduino Temperature Monitor
+Arduino Temperature Monitor - SD Logging Branch
 ---
+
+![Pic](http://i.imgur.com/55Budpy.jpg)
+
+Example log data written to 'logN.txt' where N is increasing with button presses.
+
+```
+540 -4.1 22.3
+1567 -4.1 22.3
+2575 -4.0 22.3
+3582 -4.1 22.3
+4590 -4.0 22.3
+5598 -4.1 22.3
+6605 -4.0 22.3
+7614 -4.1 22.3
+8622 -4.0 22.3
+9629 -4.1 22.3
+10637 -4.0 22.3
+11644 -4.1 22.3
+12652 -4.0 22.3
+13660 -4.0 22.3
+14667 -4.0 22.3
+15675 -4.0 22.3
+16683 -4.0 22.3
+17690 -4.0 22.3
+18699 -4.0 22.3
+19706 -4.0 22.3
+...
+```
+
+* In this branch, I removed the LCD / LED stuff, since I'm  working with the SD Card and just want to log temperature data for the rest of winter '13.
+
+A single entry will reasonably take at most 25 chars. At a rate of 1 Hz, it comes out to about 2 Mb a day, so in 25 days when I get back it should be around 50 Mb. I've left it running with a 4 Gb SD card so it should be fine.
+
+Code is set up such that if power resets on it, it'll go to next new log file and start writing there.
+
 
 Schematic
 ---

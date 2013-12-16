@@ -128,9 +128,6 @@ int firstUnusedIndex(int index, int maxIndex) {
 
 void openLogFile(int index) {
   getFilename(index);
-  Serial.print("  Trying to open '");
-  Serial.print(filename_buffer);
-  Serial.println("'");
   logFile = SD.open(filename_buffer, FILE_WRITE);
   if (!logFile) {
     // if the file didn't open, print an error:
@@ -202,10 +199,17 @@ void loop() {
   // Log temperatures if logfile exists 
   if (logFile) {
     // Thermistor A & B
-    Serial.println("Logging.");
-    logFile.print(tempA, 1);
+    Serial.print(millis());
+    Serial.print(" ");
+    Serial.print(tempA, 1);
+    Serial.print(" ");
+    Serial.println(tempB, 1);
+    
+    logFile.print(millis()); // Number of milliseconds since the program started (unsigned long)
     logFile.print(" ");
-    logFile.println(tempB, 1);
+    logFile.print(tempA, 1); // Thermistor A (celsius)
+    logFile.print(" ");
+    logFile.println(tempB, 1); // Thermistor B (celsius)
   }
   
   // Wait one second.
