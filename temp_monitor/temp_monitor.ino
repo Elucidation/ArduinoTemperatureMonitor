@@ -210,6 +210,7 @@ void loop() {
     logFile.print(tempA, 1); // Thermistor A (celsius)
     logFile.print(" ");
     logFile.println(tempB, 1); // Thermistor B (celsius)
+    logFile.flush();
   }
   
   // Wait one second.
