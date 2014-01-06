@@ -1,22 +1,15 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
+#include <ThermistorSensor.h>
 
 // which analog pins to connect
 #define THERMISTOR_PIN_A A0
 #define THERMISTOR_PIN_B A1
-// resistance at 25 degrees C
-#define THERMISTORNOMINAL 10000      
-// temp. for nominal resistance (almost always 25 C)
-#define TEMPERATURENOMINAL 25   
-// how many samples to take and average, more takes longer
-// but is more 'smooth'
-#define NUMSAMPLES 20
-// The beta coefficient of the thermistor (usually 3000-4000)
-#define BCOEFFICIENT 3950
-// the value of the 'other' resistor
-#define SERIESRESISTOR 10000    
 
 // PIN 2 - Used for Pushbutton with interrupt 0
+
+// If we want serial output
+#define SERIAL_OUTPUT
 
 // Signal LEDs
 #define LED_GREEN 13
@@ -26,47 +19,16 @@
 
 LiquidCrystal_I2C lcd(0x27,16,2);  // set the LCD address to 0x27 for a 16 chars and 2 line display
 
-// Thermistor sample array
-int samples[NUMSAMPLES];
-
-// Used in getTemp to get steinhart value for temperature conversion from thermistor reading.
-float steinhart;
-
 // Keeps track of whether LCD backlight should be on or off via interrupt.
 volatile bool do_backlight = false;
 
 // Keeps track of last backlight status
 bool last = do_backlight;
+
+// Thermistor objects and temperature variables
+ThermistorSensor thermistorA(THERMISTOR_PIN_A);
+ThermistorSensor thermistorB(THERMISTOR_PIN_B);
 float tempA, tempB;
-
-// Returns temperature in degrees celcius of thermistor reading from given pin
-float getTemp(int pin) {
-  uint8_t i;
-  float average;
- 
-  // Take N samples in a row, with a slight delay
-  for (i=0; i< NUMSAMPLES; i++) {
-   samples[i] = analogRead(pin);
-  }
- 
-  // Average all the samples out
-  average = 0;
-  for (i=0; i< NUMSAMPLES; i++) {
-     average += samples[i];
-  }
-  average /= NUMSAMPLES;
-
-  // Convert the value to resistance
-  average = 1023 / average - 1;
-  average = SERIESRESISTOR / average;
-  steinhart = average / THERMISTORNOMINAL;     // (R/Ro)
-  steinhart = log(steinhart);                  // ln(R/Ro)
-  steinhart /= BCOEFFICIENT;                   // 1/B * ln(R/Ro)
-  steinhart += 1.0 / (TEMPERATURENOMINAL + 273.15); // + (1/To)
-  steinhart = 1.0 / steinhart;                 // Invert
-  steinhart -= 273.15;                         // convert to C
-  return steinhart;
-}
 
 // Switches do_backlight on pushbutton press
 void switch_backlight() {
@@ -87,12 +49,16 @@ void setup() {
   pinMode(LED_GREEN, OUTPUT);
   pinMode(LED_RED, OUTPUT);
   
+  #ifdef SERIAL_OUTPUT
+  // Start serial
+  Serial.begin(9600);
+  #endif
 }
 
 void loop() {
   // Read thermistors
-  tempA = getTemp(THERMISTOR_PIN_A);
-  tempB = getTemp(THERMISTOR_PIN_B);
+  tempA = thermistorA.getReading();
+  tempB = thermistorB.getReading();
   
   // Signal LEDS
   // A
@@ -133,6 +99,18 @@ void loop() {
   lcd.print(tempB, 1);
   lcd.print((char)223);
   lcd.print("C    ");
+
+  #ifdef SERIAL_OUTPUT
+  Serial.print("OUT: ");
+  Serial.print(tempA, 1);
+  Serial.print("C\t");
+  
+  // Thermistor B
+  // Serial.setCursor(0,1);
+  Serial.print("IN: ");
+  Serial.print(tempB, 1);
+  Serial.println(" C");
+  #endif
   
   // Wait one second.
   delay(1000);  
