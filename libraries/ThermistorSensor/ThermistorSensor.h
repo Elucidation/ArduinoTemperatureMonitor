@@ -1,6 +1,7 @@
 /*
-  ThermistorSensor.h - Library for getting light level readings from an LED.
-  Created by Sameer Ansari, Oct 10, 2013.
+  ThermistorSensor.h - Library for getting temperature readings from a 
+  thermistor.
+  Created by Sameer Ansari, Jan 1, 2014.
   Released into public domain.
 */
 
