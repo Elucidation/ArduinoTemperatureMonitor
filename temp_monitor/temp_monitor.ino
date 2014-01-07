@@ -1,3 +1,6 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <ThermistorSensor.h>
 #include <SD.h>
 /*
   SD card read/write circuit:
@@ -24,19 +27,27 @@
 // which analog pins to connect
 #define THERMISTOR_PIN_A A0
 #define THERMISTOR_PIN_B A1
-// resistance at 25 degrees C
-#define THERMISTORNOMINAL 10000      
-// temp. for nominal resistance (almost always 25 C)
-#define TEMPERATURENOMINAL 25   
-// how many samples to take and average, more takes longer
-// but is more 'smooth'
-#define NUMSAMPLES 20
-// The beta coefficient of the thermistor (usually 3000-4000)
-#define BCOEFFICIENT 3950
-// the value of the 'other' resistor
-#define SERIESRESISTOR 10000    
 
 // PIN 2 - Used for Pushbutton with interrupt 0
+
+// If we want serial output
+#define SERIAL_OUTPUT
+
+// Signal LEDs
+#define LED_GREEN 13
+#define LED_RED 12
+// Logic : If Temp A is < 0c, RED
+// If Temp A > 5c, GREEN
+// If File error red/green don't ping
+
+LiquidCrystal_I2C lcd(0x27,16,2);  // set the LCD address to 0x27 for a 16 chars and 2 line display
+
+// Disabled backlight tracking - subsumed for file reset control
+// Keeps track of whether LCD backlight should be on or off via interrupt.
+// volatile bool do_backlight = false;
+
+// Keeps track of last backlight status
+// bool last = do_backlight;
 
 // SD Card log file init
 File logFile;
@@ -44,45 +55,17 @@ String filename;
 char filename_buffer[MAX_FILENAME_LENGTH];
 int fileIndex = 0;
 
-// Thermistor sample array
-int samples[NUMSAMPLES];
+boolean has_SD_card = false;
+boolean has_init = false;
 
-// Used in getTemp to get steinhart value for temperature conversion from thermistor reading.
-float steinhart;
 
-// Thermistor A & B Temperature variables
+// Thermistor objects and temperature variables
+ThermistorSensor thermistorA(THERMISTOR_PIN_A);
+ThermistorSensor thermistorB(THERMISTOR_PIN_B);
 float tempA, tempB;
 
-// Returns temperature in degrees celcius of thermistor reading from given pin
-float getTemp(int pin) {
-  uint8_t i;
-  float average;
- 
-  // Take N samples in a row, with a slight delay
-  for (i=0; i< NUMSAMPLES; i++) {
-   samples[i] = analogRead(pin);
-  }
- 
-  // Average all the samples out
-  average = 0;
-  for (i=0; i< NUMSAMPLES; i++) {
-     average += samples[i];
-  }
-  average /= NUMSAMPLES;
-
-  // Convert the value to resistance
-  average = 1023 / average - 1;
-  average = SERIESRESISTOR / average;
-  steinhart = average / THERMISTORNOMINAL;     // (R/Ro)
-  steinhart = log(steinhart);                  // ln(R/Ro)
-  steinhart /= BCOEFFICIENT;                   // 1/B * ln(R/Ro)
-  steinhart += 1.0 / (TEMPERATURENOMINAL + 273.15); // + (1/To)
-  steinhart = 1.0 / steinhart;                 // Invert
-  steinhart -= 273.15;                         // convert to C
-  return steinhart;
-}
-
 bool last, do_switch = false;
+
 void doFileSwitch() {
   // Enable switch files in loop
   do_switch = true;
@@ -90,19 +73,25 @@ void doFileSwitch() {
 
 // Switches to next incremented log file
 void switchFiles() {
-  // Close current file
-  logFile.close();
-  Serial.print("Closed logfile ");
-  Serial.println(filename_buffer);
-  
-  // Go to next index
-  fileIndex++;
-  
-  // Open new log file
-  openLogFile(fileIndex);
-  
-  Serial.print("Started writing to logfile ");
-  Serial.println(filename_buffer);
+  if (!has_SD_card) {
+    loadSD();
+  } 
+  else {
+    Serial.println("Switching files...");
+    // Close current file
+    logFile.close();
+    Serial.print("Closed logfile ");
+    Serial.println(filename_buffer);
+    
+    // Go to next index
+    fileIndex++;
+    
+    // Open new log file
+    openLogFile(fileIndex);
+    
+    Serial.print("Started writing to logfile ");
+    Serial.println(filename_buffer);
+  }
 }
 
 // Gets filename given an index into filename and filename_buffer global variables
@@ -133,11 +122,22 @@ void openLogFile(int index) {
     // if the file didn't open, print an error:
     Serial.print("ERROR: Could not open ");
     Serial.println(filename_buffer);
+    lcd.clear();
+    lcd.print("LOG OPEN ERROR:");
+    lcd.setCursor(0,1);
+    lcd.print(filename_buffer);
+    delay(2000);
+    lcd.clear();
+  } else {
+    lcd.clear();
+    lcd.print("USING LOG:");
+    lcd.setCursor(0,1);
+    lcd.print(filename_buffer);
+    delay(2000); // Pause 2 seconds
+    lcd.clear();
   }
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////
-boolean has_init = false;
 boolean initSD() {
   Serial.print("Initializing SD card...");
   // On the Ethernet Shield, CS is pin 4. It's set as an output by default.
@@ -153,21 +153,47 @@ boolean initSD() {
   Serial.println("SD Initialization done.");
   return true;
 }
+
+void loadSD() {
+  // Init SD Card
+  if (!initSD()) {
+    Serial.println("Failed to Initialize SD Card.");
+    has_SD_card = false;
+    // return; // Go on but no logging
+    lcd.clear();
+    lcd.print("ERROR: FAILED");
+    lcd.setCursor(0,1);
+    lcd.print("NO SD CARD         ");
+    delay(2000);
+    lcd.clear();
+  } else {
+    // Card loaded successfully
+    has_SD_card = true;
+    lcd.clear();
+    lcd.print("SUCCESS:");
+    lcd.setCursor(0,1);
+    lcd.print("INIT SD CARD");
+    delay(2000);
+    lcd.clear();
+    fileIndex = firstUnusedIndex(0, MAX_IDX); // Filename counter "log%d.txt" %d <-- i
+    openLogFile(fileIndex);
+  }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////
 void setup() {
+  // Initialize the lcd with backlight on
+  lcd.init();
+  lcd.backlight();
+  lcd.print("Initializing...");
+
   // Reserve space for filename string
   filename.reserve(MAX_FILENAME_LENGTH);
   
   // Start serial
   Serial.begin(9600);
   
-  // Init SD Card
-  if (!initSD()) {
-    Serial.println("Failed to Initialize SD Card.");
-    return;
-  }
-  
-  fileIndex = firstUnusedIndex(0, MAX_IDX); // Filename counter "log%d.txt" %d <-- i
-  openLogFile(fileIndex);
+  loadSD();
   
   // Trigger backlight on push button on pin 2 (interrupt 0)
   attachInterrupt(0, doFileSwitch, RISING);
@@ -180,15 +206,35 @@ void loop() {
   if (!has_init) {return;} // Don't do anything unless initialization succeeded
   
   // Read thermistors
-  tempA = getTemp(THERMISTOR_PIN_A);
-  tempB = getTemp(THERMISTOR_PIN_B);
+  tempA = thermistorA.getReading();
+  tempB = thermistorB.getReading();
   
+  // Signal LEDS
+  // A
+  // <= 0 ~ RED
+  // 0 < 5 < ~ Nothing
+  // >= 5 ~ GREEN
+  if (!(has_SD_card && logFile)) {
+    digitalWrite(LED_RED, HIGH);
+    digitalWrite(LED_GREEN, HIGH);
+  }
+  else if (tempA <= 0) {
+    digitalWrite(LED_RED, HIGH);
+    digitalWrite(LED_GREEN, LOW);
+  }
+  else if (tempA >= 5) {
+    digitalWrite(LED_RED, LOW);
+    digitalWrite(LED_GREEN, HIGH);
+  }
+  else {
+    digitalWrite(LED_RED, LOW);
+    digitalWrite(LED_GREEN, LOW);
+  }
   
   // Has to run outside interrupt
   if (do_switch != last) {
     if (do_switch) {
       // Todo: Switch files
-      Serial.println("Switching files...");
       switchFiles();
       
       do_switch = false;
@@ -197,7 +243,7 @@ void loop() {
   }
   
   // Log temperatures if logfile exists 
-  if (logFile) {
+  if (has_SD_card && logFile) {
     // Thermistor A & B
     Serial.print(millis());
     Serial.print(" ");
@@ -212,6 +258,32 @@ void loop() {
     logFile.println(tempB, 1); // Thermistor B (celsius)
     logFile.flush();
   }
+
+  // Thermistor A
+  lcd.setCursor(0,0);
+  lcd.print("OUT: ");
+  lcd.print(tempA, 1);
+  lcd.print((char)223);
+  lcd.print("C    ");
+  
+  // Thermistor B
+  lcd.setCursor(0,1);
+  lcd.print(" IN: ");
+  lcd.print(tempB, 1);
+  lcd.print((char)223);
+  lcd.print("C    ");
+
+  #ifdef SERIAL_OUTPUT
+  Serial.print("OUT: ");
+  Serial.print(tempA, 1);
+  Serial.print("C\t");
+  
+  // Thermistor B
+  // Serial.setCursor(0,1);
+  Serial.print("IN: ");
+  Serial.print(tempB, 1);
+  Serial.println(" C");
+  #endif
   
   // Wait one second.
   delay(1000);  
